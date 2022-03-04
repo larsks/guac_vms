@@ -24,7 +24,7 @@ rm code.rpm
 yum clean all
 
 # Guacamole only supports rdp security
-if [ -f /etc/xrdb/xrdp.ini ]; then
+if [ -f /etc/xrdp/xrdp.ini ]; then
 	sed -i '/^security.layer=/ s/=.*/=rdp/' /etc/xrdp/xrdp.ini
 fi
 
