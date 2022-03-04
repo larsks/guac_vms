@@ -21,6 +21,9 @@ virt-customize -a $IMAGE --run configure-image.sh --selinux-relabel
 echo "* Running virt-sysprep on image"
 virt-sysprep -a $IMAGE --root-password locked:disabled --selinux-relabel
 
+echo "* Rebasing image"
+qemu-img rebase -f qcow2 -F qcow2 -b "" $IMAGE
+
 echo "* Creating test image"
 rm -f boot-$IMAGE
 qemu-img create -b $IMAGE -f qcow2 -F qcow2 boot-$IMAGE
