@@ -4,13 +4,18 @@ set -o errexit
 
 exec > /root/configure.log 2>&1
 
-yum -y upgrade
+# It looks like kernel ugprades done inside the libguestfs environment
+# result in an unbootable image, so we exclude kernel packages from the
+# upgrade.
+yum -y upgrade -x 'kernel' -x 'kernel-*'
 
 yum -y install \
 	xrdp \
 	firefox \
-	@gnome-desktop
-#@development-tools \
+	@gnome-desktop \
+	@development-tools
+
+systemctl enable xrdp
 
 curl -sfL -o code.rpm 'https://code.visualstudio.com/sha/download?build=stable&os=linux-rpm-x64'
 yum -y localinstall code.rpm
@@ -18,10 +23,10 @@ rm code.rpm
 
 yum clean all
 
-systemctl enable xrdp
-
 # Guacamole only supports rdp security
-sed -i '/^security.layer=/ s/=.*/=rdp/' /etc/xrdp/xrdp.ini
+if [ -f /etc/xrdb/xrdp.ini ]; then
+	sed -i '/^security.layer=/ s/=.*/=rdp/' /etc/xrdp/xrdp.ini
+fi
 
 # Guacamole only supports ssh-rsa
 cat > /etc/ssh/sshd_config.d/10-override-crypto-policies.conf <<EOF
