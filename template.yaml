@@ -11,7 +11,7 @@ objects:
     userdata: |
       #cloud-config
       user: fedora
-      password: ${CLOUD_USER_PASSWORD}
+      password: "${CLOUD_USER_PASSWORD}"
       chpasswd:
         expire: false
       ssh_authorized_keys:
