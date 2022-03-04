@@ -1,0 +1,152 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: shaw-virtual-desktop
+objects:
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: userdata-${NAME}
+  stringData:
+    userdata: |
+      #cloud-config
+      user: fedora
+      password: ${CLOUD_USER_PASSWORD}
+      chpasswd:
+        expire: false
+      ssh_authorized_keys:
+        - ${SSHKEY}
+  type: Opaque
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${NAME}-vm-pub
+    labels:
+      kubevirt.io/domain: ${NAME}
+  spec:
+    ports:
+    - name: http
+      port: 80
+    - name: https
+      port: 443
+    selector:
+      kubevirt.io/domain: ${NAME}
+    type: LoadBalancer
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${NAME}-vm-int
+    labels:
+      kubevirt.io/domain: ${NAME}
+  spec:
+    ports:
+    - name: ssh
+      port: 22
+    - name: http
+      port: 80
+    - name: https
+      port: 443
+    - name: rdp
+      port: 3389
+    selector:
+      kubevirt.io/domain: ${NAME}
+- apiVersion: kubevirt.io/v1
+  kind: VirtualMachine
+  metadata:
+    annotations:
+      massopen.cloud/password: ${CLOUD_USER_PASSWORD}
+      vm.kubevirt.io/validations: |
+        [
+          {
+            "name": "minimal-required-memory",
+            "path": "jsonpath::.spec.domain.resources.requests.memory",
+            "rule": "integer",
+            "message": "This VM requires more memory.",
+            "min": 1610612736
+          }
+        ]
+    labels:
+      kubevirt.io/domain: ${NAME}
+      vm.kubevirt.io/template: shaw-virtual-desktop
+    name: ${NAME}-vm
+  spec:
+    dataVolumeTemplates:
+    - metadata:
+        name: ${NAME}-rootdisk
+      spec:
+        pvc:
+          accessModes:
+          - ReadWriteMany
+          resources:
+            requests:
+              storage: 10Gi
+          volumeMode: Block
+        source:
+          pvc:
+            name: shaw-virtual-desktop
+            namespace: shaw-virtual-desktop
+    running: true
+    template:
+      metadata:
+        annotations:
+          vm.kubevirt.io/os: fedora35
+        labels:
+          kubevirt.io/domain: ${NAME}
+      spec:
+        domain:
+          cpu:
+            cores: 4
+            sockets: 1
+            threads: 1
+          devices:
+            disks:
+            - disk:
+                bus: virtio
+              name: cloudinitdisk
+            - bootOrder: 1
+              disk:
+                bus: virtio
+              name: rootdisk
+            inputs:
+            - bus: virtio
+              name: tablet
+              type: tablet
+            interfaces:
+            - model: virtio
+              name: default
+              masquerade: {}
+            networkInterfaceMultiqueue: true
+          machine:
+            type: pc-q35-rhel8.4.0
+          resources:
+            limits:
+              cpu: 2
+              memory: 8Gi
+            requests:
+              cpu: 2
+              memory: 8Gi
+        evictionStrategy: LiveMigrate
+        hostname: ${NAME}
+        networks:
+        - name: default
+          pod: {}
+        terminationGracePeriodSeconds: 180
+        volumes:
+        - cloudInitConfigDrive:
+            secretRef:
+              name: userdata-${NAME}
+          name: cloudinitdisk
+        - dataVolume:
+            name: ${NAME}-rootdisk
+          name: rootdisk
+parameters:
+- description: Name for the new VM
+  name: NAME
+  required: true
+- description: Student SSH key
+  name: SSHKEY
+  required: true
+- description: Randomized password for the default user
+  from: '[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}'
+  generate: expression
+  name: CLOUD_USER_PASSWORD
